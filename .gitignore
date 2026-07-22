@@ -5,3 +5,5 @@ LIVE_PROOF.png
 *.json
 !package*.json
 comparison.mp4
+*.db
+.collatz_swarm/
