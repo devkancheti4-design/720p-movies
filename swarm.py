@@ -69,6 +69,9 @@ def cmd_list():
         print(f"    {tag:<14}{cap:>9}{db:>8}{fr:>9}{se:>11}")
     print("    /frame = first view (base + stored detail); /re-watch = cached (free) ≈ target/base pixel ratio.")
     print("    (uncompressed, best-quality; --combo trades quality for more data-saving; not a codec.)")
+    print("    NOTE: re-watch is FREE (same movie, exact blocks cached). Across DIFFERENT movies the stored")
+    print("    hard-detail blocks are ~unique (1.00× — measured in cross_movie_blocks.py); the parts genres")
+    print("    share are the flat/easy regions we rebuild for free, not stored bytes.")
 
 def cmd_logs():
     if not os.path.exists(DB): print("  no store yet — run: python3 swarm.py on"); return

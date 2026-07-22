@@ -104,6 +104,25 @@ Content-dependent (disclosed in the code): a detail-heavy movie fits fewer (5% u
 3. **The device hardware just arranges it**: upscale the 360p base (cheap interpolation = the easy pixels) and
    paste the stored hard blocks (a key lookup). No AI, no codec work on the device.
 
+## Do different movies share the same blocks? (`cross_movie_blocks.py` — measured, no spin)
+
+A natural hope: *"most genres have the same blocks, so once the store is warm, every new movie is mostly cached."*
+Measured on 6 **different** real images (one per "genre"), the honest split is:
+
+| Level (what's shared) | Cross-movie dedup | Quality |
+|---|---|---|
+| **Bit-exact hard blocks** (what we actually store) | **1.00×** — no sharing | lossless |
+| Quantized codebook, 4×4 / 6 levels | 1.06× | 39.9 dB |
+| Quantized codebook, 2×2 / 6 levels | **3.0×** | 23.5 dB |
+| Quantized codebook, 1×1 / 4 levels | 689× | 17.8 dB |
+
+**The honest answer:** different movies do **not** share bit-exact detail blocks (1.00×) — the fine detail we store
+is nearly unique per film. Where genres *do* look alike — flat sky, skin, walls, gradients, letterbox bars, UI — is
+exactly the **easy** blocks we **don't** store (they rebuild free from the base upscale), so that shared-ness already
+helps, just not as stored bytes. You *can* share texture-**kinds** across genres with a **quantized codebook**, but
+it's lossy — sharing climbs only as quality drops (a knob, not free). So the big free reuse is **re-watching the same
+movie** (exact, cached, free), not cross-movie sharing. Stated plainly so nobody is misled.
+
 ## How much the swarm REALLY contributes (`swarm_contribution_proof.py` — ablation, measured by deletion)
 
 | Delete this swarm property | What breaks |
@@ -179,6 +198,7 @@ phone's finished files.
 | [`swarm_frame_store.py`](swarm_frame_store.py) | Lossless bit-exact repeated-block store + swarm multiplication (the "pipeline" case) |
 | [`swarm_assembly_store.py`](swarm_assembly_store.py) | Cross-device sharing: popular content assembles 0-from-origin |
 | [`layered_movie_swarm.py`](layered_movie_swarm.py) | The lossy codebook variant (~102 movies, honestly attributed: the 26× is the 144p base) |
+| [`cross_movie_blocks.py`](cross_movie_blocks.py) | **Do genres share blocks?** Honest: bit-exact 1.00× (no), shared texture-kinds only via a lossy codebook (3× @ 23dB) |
 | [`movie_storage.py`](movie_storage.py) | **Honest negative**: the organism cannot compress a finished distinct movie (1.000×) |
 
 ## Honest boundaries (in the code, not fine print)
