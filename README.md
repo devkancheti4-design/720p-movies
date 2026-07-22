@@ -35,11 +35,21 @@ Content-dependent (disclosed in the code): a detail-heavy movie fits fewer (5% u
 | Delete this swarm property | What breaks |
 |---|---|
 | **Dedup** (the organism store) | movies drop **16 → 8**: the swarm's dedup alone is **+8 movies — half the result** |
-| **Aliveness** (freeze, confirm=∞) | a NEW movie's hard textures are never adopted → fidelity crashes **99.97% → 94.5%** (**+5.4 pts is aliveness**) |
+| **Aliveness** (freeze) | you lose **online, single-pass, no-retrain, no-human ingestion** of new content. *(DD-corrected: an earlier "+5.4 fidelity pts is aliveness" claim was **refuted and retracted** — that was storage, which a plain cache also does. Aliveness = the no-retrain online operation, not a fidelity bonus.)* |
 | **Regeneration** (the WAL) | a crash mid-ingest redoes everything (12,777 obs) vs **0 re-observed** — the organism revives byte-exact |
 | **Multiplication** | long movies: 4 spawned shards, CRDT union **== single store** (capacity, identical result) |
 
 **Not the swarm (stated plainly):** the 360p base is resolution math, and the upscaler/classifier are device code.
+
+### The hard truth files (run them before believing anyone — including us)
+- [`storage_record_truth.py`](storage_record_truth.py): the swarm's REAL records — long-range dedup **22.8×** where
+  window-limited zlib gets **1.0×**, cross-node **7.7×**, multiply = capacity ×8 CRDT-exact — AND the wall: on
+  high-entropy content it stores **0.996×** like everything else. "Compresses anything" is impossible for any
+  lossless system (pigeonhole); the swarm's wins live exactly where exact redundancy exists.
+- [`lossless_movie_pack.py`](lossless_movie_pack.py): TRULY lossless (sha-verified) is content-dependent —
+  recurring-texture content ~**15** movies, realistic 90%-detail movie ~**3** (the honest floor). Truly-lossless
+  real 720p does not fit many in 2GB — physics. The 16/9 numbers above are **near-lossless** (hard detail
+  bit-exact, easy pixels ≤3/255), which is the honest offer.
 
 ## What is "the pipeline"? (the raw/intermediate-frames note explained)
 
@@ -89,7 +99,9 @@ phone's finished files.
 |---|---|
 | [`complete_alive_organism.py`](complete_alive_organism.py) | THE organism (observe/adapt/rules/failsafe + WAL revive + CRDT + heartbeat) |
 | [`hard_frame_upscale.py`](hard_frame_upscale.py) | **The exact numbers**: 4 → 16/9 movies, 99.97% fidelity, observer + dedup + revive |
-| [`swarm_contribution_proof.py`](swarm_contribution_proof.py) | **Ablation**: dedup +8 movies; aliveness +5.4 fidelity pts; regen saves the ingest |
+| [`swarm_contribution_proof.py`](swarm_contribution_proof.py) | **Ablation**: dedup +8 movies (half the result); aliveness = online no-retrain ingestion (fidelity claim retracted after DD audit); regen saves the ingest |
+| [`storage_record_truth.py`](storage_record_truth.py) | The records it breaks (22.8× long-range, 7.7× cross-node) and the wall nobody breaks (high-entropy 0.996×) |
+| [`lossless_movie_pack.py`](lossless_movie_pack.py) | TRULY lossless, sha-verified: ~15 recurring / ~3 realistic-movie floor — the honest lossless scope |
 | [`swarm_frame_store.py`](swarm_frame_store.py) | Lossless bit-exact repeated-block store + swarm multiplication (the "pipeline" case) |
 | [`swarm_assembly_store.py`](swarm_assembly_store.py) | Cross-device sharing: popular content assembles 0-from-origin |
 | [`layered_movie_swarm.py`](layered_movie_swarm.py) | The lossy codebook variant (~102 movies, honestly attributed: the 26× is the 144p base) |

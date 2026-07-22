@@ -75,31 +75,22 @@ def run_selftest():
     print(f"        => the swarm's dedup alone contributes +{n_with - n_without} movies ({n_without} -> {n_with}) on this mix  {ok(n_with > n_without)}")
     assert n_with > n_without
 
-    # [B] FREEZE THE ALIVENESS — a NEW movie (new textures) arrives; frozen never adopts -> fidelity crashes
-    movie2 = make_movie(rng, pool=list(range(200, 240)))          # brand-new hard textures
-    def ingest_and_reconstruct(confirm):
-        o = AliveOrganism(confirm=confirm); st = {}
-        for blocks in movie2:
-            for kind, bl in blocks:
-                if kind == "hard":
-                    k = bkey(bl)
-                    if o.observe(k)["novel"] and confirm == 1: st[k] = bl
-        err_sum = tot = 0
-        for blocks in movie2:
-            for kind, bl in blocks:
-                if kind == "hard" and bkey(bl) in st: rec = st[bkey(bl)]
-                else: rec = up2(down2(bl))                         # device upscales (hard blocks too, if not stored)
-                for y in range(B):
-                    for x in range(B):
-                        err_sum += abs(rec[y][x] - bl[y][x]); tot += 1
-        return 100 * (1 - (err_sum / tot) / 255)
-    fid_alive = ingest_and_reconstruct(1)
-    fid_frozen = ingest_and_reconstruct(10**9)
-    print(f"  [B] ALIVENESS contribution (freeze it on a NEW movie):")
-    print(f"        ALIVE observer  : adopts the new textures -> fidelity {fid_alive:.2f}%")
-    print(f"        FROZEN observer : never adopts -> device must upscale hard detail -> fidelity {fid_frozen:.2f}%")
-    print(f"        => aliveness contributes +{fid_alive - fid_frozen:.2f} fidelity points on every NEW movie  {ok(fid_alive - fid_frozen > 5)}")
-    assert fid_alive - fid_frozen > 5
+    # [B] ONLINE, NO-RETRAIN ingestion — the HONEST aliveness role (a hostile DD audit refuted the earlier
+    #     "aliveness gives +fidelity" claim: that was verbatim storage relabeled, and a plain dict cache beats
+    #     the confirm-gate. So this measures what aliveness ACTUALLY contributes: a NEW movie is absorbed in a
+    #     SINGLE PASS of observe() with no retraining loop and no human re-provisioning. The STORAGE win itself
+    #     is DEDUP [A] + the low-res base, which a plain deterministic content store also achieves.)
+    movie2 = make_movie(rng, pool=list(range(200, 240)))          # a NEW movie with brand-new textures
+    o = AliveOrganism(confirm=1); before = len(o.normal); passes = 1
+    for blocks in movie2:
+        for kind, bl in blocks:
+            if kind == "hard": o.observe(bkey(bl))                # single pass, no retrain
+    added = len(o.normal) - before
+    print(f"  [B] ONLINE NO-RETRAIN (the honest aliveness role): a NEW movie absorbed in {passes} pass -> +{added} textures "
+          f"adopted, ZERO retraining / re-provisioning  {ok(added > 0)}")
+    print(f"        HONEST (per DD audit): this is NOT a fidelity bonus. The storage win is DEDUP [A] + low-res base — a")
+    print(f"        plain deterministic content store does that too. Aliveness = online, single-pass, no-human ingestion.")
+    assert added > 0
 
     # [C] REGENERATION — crash mid-ingest; WAL revive == pre-crash state, 0 blocks re-observed
     if os.path.exists(JR): os.remove(JR)
@@ -132,15 +123,16 @@ def run_selftest():
 
     print(f"""
 {"="*94}
- VERDICT — what the alive swarm REALLY contributes (measured by deletion):
+ VERDICT — what the alive swarm REALLY contributes (measured by deletion; hardened by a hostile DD audit):
  * DEDUP        : +{n_with - n_without} movies in 2GB ({n_without} -> {n_with}) — delete the organism store and the count drops.
- * ALIVENESS    : +{fid_alive - fid_frozen:.1f} fidelity points on every NEW movie ({fid_frozen:.1f}% -> {fid_alive:.1f}%) — freeze it and new
-                  content's hard detail cannot be stored, the device upscales it, quality crashes.
+ * ALIVENESS    : online, SINGLE-PASS, no-retrain, no-human ingestion of new content (+{added} textures in 1 pass).
+                  HONEST (DD-corrected): NOT a fidelity bonus — the earlier '+fidelity is aliveness' claim was
+                  refuted (it was verbatim storage; a plain dict cache ties it). The storage win is DEDUP + base.
  * REGENERATION : the whole ingest survives crashes byte-exact (0 re-observed vs {len(ks):,} redone without the WAL).
  * MULTIPLY     : capacity scales across spawned nodes with an identical result (CRDT union == single).
  * NOT the swarm: the 360p base (resolution math) and the upscaler/classifier (device code) — stated plainly.
- HONEST: numbers are from the disclosed synthetic mix; the dedup contribution depends on texture recurrence
- (recurring sets/objects). The attribution method — delete a property, measure the drop — is the proof.
+ HONEST: numbers are from the disclosed synthetic mix; the dedup contribution depends on texture recurrence.
+ The attribution method — delete a property, measure the drop — is the proof; and the refuted claim is retracted.
 {"="*94}""")
 
 
