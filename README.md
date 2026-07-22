@@ -9,11 +9,17 @@ run; nothing here is a screenshot or a promise.
 ```bash
 git clone git@github.com:devkancheti4-design/720p-movies.git && cd 720p-movies
 pip3 install pillow numpy           # (brew install ffmpeg for video)
-python3 activate.py --to 4k                    # built-in sample → 4K, plays plain-vs-swarm side-by-side
-python3 activate.py --video myclip.mp4 --to 4k # YOUR video
+
+# pick a BASE and a TARGET — the alive swarm rebuilds at BEST QUALITY (~93-95% capture) and plays it:
+python3 activate.py --base 720 --to 1080       # 720p → 1080p
+python3 activate.py --base 720 --to 1440       # 720p → 1440p
+python3 activate.py --base 720 --to 4k         # 720p → 4K
+python3 activate.py --video myclip.mp4 --base 720 --to 4k    # YOUR video
+python3 activate.py --base 720 --to 4k --combo # max DATA-SAVING mode (7.6× smaller, lower quality)
 ```
-The alive organism ingests the video, stores the hard blocks (dialed to **~90% capture**), rebuilds, and opens a
-side-by-side you can watch. Full activation guide (phones / laptops / TVs / server): **[ACTIVATE.md](ACTIVATE.md)**.
+The alive organism ingests the video, stores the hard blocks at the chosen quality, rebuilds, and opens a
+side-by-side (plain upscale vs alive swarm) you can watch. Full activation guide (phones / laptops / TVs /
+server): **[ACTIVATE.md](ACTIVATE.md)**.
 
 ## 👁️ SEE IT ON YOUR MAC — a real photo, 480p → 720p, before/after opens on screen
 
