@@ -46,6 +46,28 @@ tiny base + only the hard blocks, and the easy pixels rebuild free. **≥1.5× i
 **So on real film there is NO storage win** — the earlier amortization/1.5× curve was *synthetic recurring*
 content. Real motion has no exact repeats. A `comparison.mp4` was rendered so you can watch bicubic-vs-swarm-vs-true.
 
+## 720p → 4K: how much of 4K is captured? (`transform_720_to_4k.py`, real 4K photo, on the Mac)
+
+The honest core: **the swarm does not invent 4K detail** — it captures 4K only by *storing* the true 4K
+hard-blocks. Measured on a real 4K frame:
+
+| Method | PSNR | 4K detail captured | Data |
+|---|---|---|---|
+| **720p ALONE → 4K** (plain upscale) | 34.3 dB | the base only — real 4K detail **isn't in the 720p** | 720p base |
+| **720p + alive-swarm** (stored hard blocks) | **44.0 dB** | **89% of the detail plain-upscale loses** | base + hard store |
+
+**The knob (quality ⇄ data) — capture more by storing more:**
+
+| Threshold | 4K detail captured | Blocks stored | Smaller than raw 4K |
+|---|---|---|---|
+| 6 | **97%** | 22% | 3.0× |
+| 16 | 89% | 11% | 4.4× |
+| 40 | 48% | 2% | 7.4× |
+
+**Full byte log (one 4K frame):** raw 4K **24.9 MB** → 720p base **2.8 MB** + hard store **~2 MB** = **~5 MB
+(≈4.4× smaller than raw, uncompressed)**. Honest: a real H.265 codec still beats that on data — the swarm is a
+rebuilder + cache, not a codec.
+
 ## Alive — proven live on the real store (not static)
 
 - **Deterministic** — same store → same fingerprint.
