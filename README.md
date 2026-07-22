@@ -4,11 +4,26 @@
 99.97% measured pixel fidelity.** Every claim in this repo is a runnable, self-asserting Python file — clone and
 run; nothing here is a screenshot or a promise.
 
+## ▶ ONE COMMAND — run the whole alive pipeline (no setup, Python 3 only)
+
 ```bash
 git clone git@github.com:devkancheti4-design/720p-movies.git && cd 720p-movies
+python3 movie_swarm.py
+```
+
+That single file (no imports, no dependencies) ingests a movie with a **live** swarm, shows how many fit in 2GB
+and the quality, plays it back, and **proves it's alive** — it adapts to a brand-new movie with no restart and
+regenerates byte-exact after a real crash. Try `python3 movie_swarm.py --detail 0.9` to watch a detail-heavy
+movie honestly fit fewer (12 typical → 3 for heavy detail). Everything printed is measured on that run.
+
+<details><summary>the individual proofs behind it</summary>
+
+```bash
 python3 hard_frame_upscale.py        # the exact numbers
 python3 swarm_contribution_proof.py  # how much the swarm REALLY contributes (ablation)
+python3 storage_record_truth.py      # the honest limits (what nobody can do)
 ```
+</details>
 
 ## The exact numbers (measured)
 
