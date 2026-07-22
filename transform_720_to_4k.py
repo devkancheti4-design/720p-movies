@@ -52,7 +52,12 @@ def main():
     # (B) SWARM: paste the true hard 4K blocks the organism stored
     diff = np.abs(true - bic).max(axis=2)
     bmax = diff.reshape(2160//BS, BS, 3840//BS, BS).max(axis=(1, 3))
-    hard = bmax > HARD_T
+    e_bic = float(np.sum((true - bic).astype(np.float64)**2))
+    DIAL = HARD_T                                            # AUTO-DIAL: capture >=90% of the lost 4K detail on ANY content
+    for cand in range(60, 0, -1):
+        h = bmax > cand; r = np.where(np.repeat(np.repeat(h, BS, 0), BS, 1)[..., None], true, bic)
+        if e_bic and 100*(1 - float(np.sum((true - r).astype(np.float64)**2))/e_bic) >= 90: DIAL = cand; break
+    hard = bmax > DIAL
     pmask = np.repeat(np.repeat(hard, BS, 0), BS, 1)[..., None]
     recon = np.where(pmask, true, bic)
     n_hard = int(hard.sum()); n_blk = hard.size
@@ -65,7 +70,6 @@ def main():
 
     # ---- how much of 4K captured ----
     p_bic, p_sw = psnr(true, bic), psnr(true, recon)
-    e_bic = float(np.sum((true - bic).astype(np.float64)**2))
     e_sw = float(np.sum((true - recon).astype(np.float64)**2))
     detail_recovered = 100*(1 - e_sw/e_bic) if e_bic > 0 else 0
     exact_bic = float(np.mean(np.all(true == bic, axis=2))*100)
