@@ -14,6 +14,7 @@ python3 all_combos.py                # 1) THE FULL TABLE: every base→target, c
 python3 real_video_proof.py          # 2) REAL VIDEO: auto-downloads Big Buck Bunny, measures it live (needs ffmpeg)
 python3 mac_live_proof.py            # 3) SEE IT: opens a real before/after image on your screen
 python3 vital_signs.py               # 4) PROOF IT'S ALIVE: passes the real organism, catches a static fake
+python3 youtube_pipeline.py          # 5) STREAMING TRUTH: how a 360p stream becomes 4K, and what it really needs
 
 # turn the on-disk swarm on and watch any video (your movie stays yours, on your disk):
 python3 swarm.py on
