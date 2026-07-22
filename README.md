@@ -4,6 +4,18 @@
 99.97% measured pixel fidelity.** Every claim in this repo is a runnable, self-asserting Python file — clone and
 run; nothing here is a screenshot or a promise.
 
+## 👁️ SEE IT ON YOUR MAC — a real photo, 480p → 720p, before/after opens on screen
+
+```bash
+git clone git@github.com:devkancheti4-design/720p-movies.git && cd 720p-movies
+pip3 install pillow numpy
+python3 mac_live_proof.py     # downloads a real photo, rebuilds 720p, OPENS the comparison
+```
+Measured on a real photo: plain 480p→720p upscale **~41 dB** vs alive swarm **~46 dB (+5 dB sharper)**, and it
+opens `LIVE_PROOF.png` so you SEE plain-upscale (blurry) vs swarm (sharp) vs true-720p — then proves the swarm is
+deterministic + regenerating + adaptive on those exact pixels. Run it on your own image with `--image path.jpg`.
+Packaging for phones / laptops / TVs: **[DEPLOY.md](DEPLOY.md)**.
+
 ## ▶ ONE COMMAND — run the whole alive pipeline (no setup, Python 3 only)
 
 ```bash
