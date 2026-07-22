@@ -57,11 +57,18 @@ def cmd_status():
     print(f"  watches    : {w}")
 
 def cmd_list():
-    print("  CAPTURE MAP — how much of the target the alive swarm rebuilds from a 720p base (measured, ~best-quality):")
-    print(f"    {'base':<8}{'target':<9}{'capture':>9}{'PSNR':>8}")
-    for b, t, cap, db in [("720p","1080p","94%","46 dB"), ("720p","1440p","93%","59 dB"), ("720p","4K","91%","56 dB")]:
-        print(f"    {b:<8}{t:<9}{cap:>9}{db:>8}")
-    print("    (content-dependent; dense-motion film needs more stored detail. '--combo' trades quality for more data-saving.)")
+    print("  CAPTURE MAP — EVERY base → target, alive swarm, ~best quality (measured; run all_combos.py to re-measure):")
+    print(f"    {'base→target':<14}{'capture':>9}{'PSNR':>8}{'/frame':>9}{'/re-watch':>11}")
+    rows = [("360p→720p","91%","45dB","1.8×","4.0×"), ("360p→1080p","92%","44dB","2.3×","9.0×"),
+            ("360p→1440p","91%","43dB","2.8×","16×"),  ("360p→4K","91%","42dB","3.3×","36×"),
+            ("480p→720p","92%","48dB","1.3×","2.2×"),  ("480p→1080p","92%","46dB","1.9×","5.1×"),
+            ("480p→1440p","91%","45dB","2.4×","9.0×"), ("480p→4K","92%","44dB","2.8×","20×"),
+            ("720p→1080p","91%","50dB","1.2×","2.2×"), ("720p→1440p","90%","48dB","1.7×","4.0×"),
+            ("720p→4K","91%","47dB","2.4×","9.0×")]
+    for tag, cap, db, fr, se in rows:
+        print(f"    {tag:<14}{cap:>9}{db:>8}{fr:>9}{se:>11}")
+    print("    /frame = first view (base + stored detail); /re-watch = cached (free) ≈ target/base pixel ratio.")
+    print("    (uncompressed, best-quality; --combo trades quality for more data-saving; not a codec.)")
 
 def cmd_logs():
     if not os.path.exists(DB): print("  no store yet — run: python3 swarm.py on"); return
