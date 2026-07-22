@@ -2,3 +2,6 @@ __pycache__/
 *.pyc
 LIVE_PROOF.png
 *.png
+*.json
+!package*.json
+comparison.mp4
