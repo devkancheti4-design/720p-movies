@@ -84,7 +84,10 @@ def combo(master, base_wh, tgt, org, frozen):
         return 100*(1 - float(block_err[~retained].sum())/e_bic)   # 1 - residual over blocks we could NOT paste
     recon = np.where(np.repeat(np.repeat(live_retained, BS, 0), BS, 1)[..., None], true, bic)
     cap = cap_of(live_retained); frz_cap = cap_of(frz_retained)    # frozen -> nothing pasted -> plain upscale
-    full = tw*th*3; base_b = base_wh[0]*base_wh[1]*3; hard_b = n_novel*BS*BS*3
+    # cheaper/frame = HONEST FIRST VIEW of THIS content, independent per combo: you pay base + ALL its hard
+    # detail (n_hard) the first time you ever see it. (n_novel is lower here only because all rows share one
+    # master photo — that cross-combo warmup is the library/re-watch story, NOT a per-combo first-view number.)
+    full = tw*th*3; base_b = base_wh[0]*base_wh[1]*3; hard_b = n_hard*BS*BS*3
     return {"cap": cap, "frz_cap": frz_cap, "psnr": psnr(true, recon),
             "frame": full/(base_b+hard_b) if (base_b+hard_b) else 0.0,
             "session": full/base_b, "n_hard": n_hard, "n_novel": n_novel}

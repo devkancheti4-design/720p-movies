@@ -4,6 +4,25 @@
 99.97% measured pixel fidelity.** Every claim in this repo is a runnable, self-asserting Python file — clone and
 run; nothing here is a screenshot or a promise.
 
+## ▶ QUICKSTART (copy-paste)
+
+```bash
+git clone git@github.com:devkancheti4-design/720p-movies.git && cd 720p-movies
+pip3 install pillow numpy            # (brew install ffmpeg only if you want to play real video)
+
+python3 all_combos.py                # 1) THE FULL TABLE: every base→target, capture % + data saved
+python3 mac_live_proof.py            # 2) SEE IT: opens a real before/after image on your screen
+python3 vital_signs.py               # 3) PROOF IT'S ALIVE: passes the real organism, catches a static fake
+
+# turn the on-disk swarm on and watch any video (your movie stays yours, on your disk):
+python3 swarm.py on
+python3 swarm.py watch yourmovie.mp4 --to 4k     # watch it at 4K from a small base; detail cached on disk
+python3 swarm.py list                            # print the full capture map any time
+```
+
+Every script prints its numbers, proves the organism is alive (or aborts with a symptom if it isn't), and needs
+nothing but Python 3 + pillow + numpy. Full base→target table is below.
+
 ## 🫀 Measured BY the alive organism — not a static screenshot (checked on every launch)
 
 Every headline number is computed or gated by the **living** Collatz organism, not by a bystander `set`/`dict`/`numpy`:
@@ -102,6 +121,31 @@ python3 storage_record_truth.py      # the honest limits (what nobody can do)
 </details>
 
 ## The exact numbers (measured)
+
+### FULL TABLE — every base → target: capture % + data saved (`python3 all_combos.py`)
+
+Measured on a real 4K photo, best-quality (~90% capture), organism-driven and freeze-verified:
+
+| base → target | capture | PSNR | cheaper / frame | cheaper / re-watch |
+|---|---|---|---|---|
+| 360p → 720p  | 91% | 45 dB | 1.8× | **4.0×** |
+| 360p → 1080p | 92% | 44 dB | 2.3× | **9.0×** |
+| 360p → 1440p | 91% | 43 dB | 2.8× | **16×** |
+| 360p → 4K    | 91% | 42 dB | 3.3× | **36×** |
+| 480p → 720p  | 92% | 48 dB | 1.3× | **2.2×** |
+| 480p → 1080p | 92% | 46 dB | 1.8× | **5.1×** |
+| 480p → 1440p | 91% | 45 dB | 2.4× | **9.0×** |
+| 480p → 4K    | 92% | 44 dB | 2.8× | **20×** |
+| 720p → 1080p | 91% | 50 dB | 1.2× | **2.2×** |
+| 720p → 1440p | 90% | 48 dB | 1.7× | **4.0×** |
+| 720p → 4K    | 90% | 47 dB | 2.4× | **9.0×** |
+
+- **capture** = % of the detail plain upscaling loses that the swarm recovers (by storing it). It's a knob — trade quality for more data-saving.
+- **cheaper/frame** = first view of new content (base + all its hard detail).
+- **cheaper/re-watch** = watching it again (hard blocks cached on disk, free) ≈ the target/base pixel ratio — the big win.
+- **Read it plainly: you watch 4K at ~720p-base data on re-watch**, and get ~90% of the detail even on first view.
+
+### Storage (movies in 2GB)
 
 | Scheme | MB/movie | Movies in 2GB | Fidelity |
 |---|---|---|---|
