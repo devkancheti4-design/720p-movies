@@ -4,6 +4,17 @@
 99.97% measured pixel fidelity.** Every claim in this repo is a runnable, self-asserting Python file — clone and
 run; nothing here is a screenshot or a promise.
 
+## ⚡ ACTIVATE IT — one command on a REAL video (ingest → rebuild → play)
+
+```bash
+git clone git@github.com:devkancheti4-design/720p-movies.git && cd 720p-movies
+pip3 install pillow numpy           # (brew install ffmpeg for video)
+python3 activate.py --to 4k                    # built-in sample → 4K, plays plain-vs-swarm side-by-side
+python3 activate.py --video myclip.mp4 --to 4k # YOUR video
+```
+The alive organism ingests the video, stores the hard blocks (dialed to **~90% capture**), rebuilds, and opens a
+side-by-side you can watch. Full activation guide (phones / laptops / TVs / server): **[ACTIVATE.md](ACTIVATE.md)**.
+
 ## 👁️ SEE IT ON YOUR MAC — a real photo, 480p → 720p, before/after opens on screen
 
 ```bash
