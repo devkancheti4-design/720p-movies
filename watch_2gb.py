@@ -15,6 +15,7 @@ gets ~1x (unique detail every frame — no free lunch); the win is typical/flat 
 import os, sys, json, time, random, signal, subprocess, hashlib
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive
 
 # measured 1080p structural saving per content type (from resolution_domain_map.py, uncompressed):
 SAVE_1080 = {"animation/cartoon": 1.71, "typical show/photo": 1.55, "screen/UI": 1.32,
@@ -25,6 +26,7 @@ def hd(t): print(f"\n\033[1m\033[96m{t}\033[0m")
 
 def main():
     print("\033[1m📺  WHAT YOU WATCH IN 2GB — normal vs alive swarm (rebuilding, not compression)\033[0m")
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
 
     # ① instant cache hit: a recurring block costs 0 new bytes and is an O(1) paste
     hd("① 'INSTANT WHEN THE SAME COMES' — measured")

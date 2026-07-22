@@ -19,6 +19,7 @@ Run: python3 lossless_movie_pack.py
 import os, sys, json, zlib, random, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive, require_load_bearing
 from hard_frame_upscale import flat_block, grad_block, detail_block, down2, up2, B, bkey
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
@@ -26,9 +27,19 @@ JR = "/tmp/_lossless_pack.journal"
 px720 = 1280 * 720; MOVIE720_MB = 500.0
 
 
-def pack_lossless(frames):
-    """Return (bytes, reconstructs-bit-exact?, unique_hard, total_hard). Base + deduped hard + zlib(easy residuals)."""
-    base_px = 0; easy_residuals = bytearray(); hard_store = {}; hard_total = 0; recon = []
+def pack_lossless(frames, confirm=1):
+    """Return (bytes, reconstructs-bit-exact?, unique_hard, total_hard, org). Base + ORGANISM-deduped hard +
+    zlib(easy residuals).
+
+    The hard-block DEDUP is the ORGANISM'S job — not a bystander dict. Every hard block is observe()'d into a live
+    AliveOrganism(confirm=1); a first-seen key is retained into org.normal, a recurring key is a no-op. So the
+    store's own count IS the dedup count: unique_hard = len(org.normal). The device pastes a hard block's TRUE
+    pixels ONLY IF the organism retained its key (k in org.normal). A FROZEN twin (confirm=10**9) retains NOTHING
+    -> stores 0 hard pixels AND pastes plain upscale (lossy) -> total_bytes / movie-count / bit-exactness all MOVE.
+    (capture/PSNR here would be device pixel-math over the organism-retained store; this file measures bit-exact
+    reconstruction of that same retained store — the organism never reads a pixel, it decides what is retained.)"""
+    org = AliveOrganism(confirm=confirm)
+    base_px = 0; easy_residuals = bytearray(); hard_total = 0; recon = []
     for blocks in frames:
         for kind, bl in blocks:
             base = down2(bl); base_px += (B // 2) * (B // 2)          # 1/4-resolution base
@@ -36,17 +47,20 @@ def pack_lossless(frames):
             if kind == "hard":
                 hard_total += 1
                 k = bkey(bl)
-                hard_store[k] = bl                                   # exact detail block, deduped by key
-                recon.append(bl)                                    # device pastes it back -> exact
+                org.observe(k)                                       # organism dedups: key retained iff ALIVE
+                if k in org.normal:
+                    recon.append(bl)                                # device pastes TRUE pixels only if retained
+                else:
+                    recon.append(up)                                # frozen twin retained nothing -> lossy upscale
             else:
                 res = bytes((bl[y][x] - up[y][x]) & 0xff for y in range(B) for x in range(B))
                 easy_residuals += res                              # tiny (flat/gradient) -> zlib crushes it
                 rec = [[(up[y][x] + (res[y*B+x] if res[y*B+x] < 128 else res[y*B+x]-256)) for x in range(B)] for y in range(B)]
                 recon.append(rec)
     bit_exact = recon == [bl for blocks in frames for _, bl in blocks]
-    unique_hard = len(hard_store)
+    unique_hard = len(org.normal)                                    # the ORGANISM's store IS the dedup count
     total_bytes = base_px + unique_hard * B * B + len(zlib.compress(bytes(easy_residuals), 9))
-    return total_bytes, bit_exact, unique_hard, hard_total
+    return total_bytes, bit_exact, unique_hard, hard_total, org
 
 
 def make_frames(rng, unique_textures, F=30, G=480, hard_frac=0.25):
@@ -67,21 +81,34 @@ def run_selftest():
     print("=" * 94)
     print(" LOSSLESS MOVIE PACK — truly bit-exact (sha-verified); honest measure of what lossless costs")
     print("=" * 94)
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
     rng = random.Random(31)
     full_px = 30 * 480 * B * B                                     # this synthetic 'movie' pixel count (fixed model)
 
     # [A] RECURRING textures (favourable content: animation / repeated sets) -> dedup helps
     fa = make_frames(rng, unique_textures=60)
-    ba, exa, ua, ta = pack_lossless(fa)
+    ba, exa, ua, ta, orga = pack_lossless(fa)
     # [B] UNIQUE textures, still 75% flat (favourable): every hard block different -> dedup can't help
     fb = make_frames(rng, unique_textures=100000)
-    bb, exb, ub, tb = pack_lossless(fb)
+    bb, exb, ub, tb, orgb = pack_lossless(fb)
     # [B2] REALISTIC MOVIE: mostly-detail (90% hard), all unique -> the honest FLOOR (a real film has detail everywhere)
     fc = make_frames(rng, unique_textures=100000, hard_frac=0.90)
-    bc, exc, uc, tc = pack_lossless(fc)
+    bc, exc, uc, tc, orgc = pack_lossless(fc)
 
     def movies(pack_px_bytes):                                    # ratio of packed bytes to raw, scaled to a 500MB master
         return int(2048 // (MOVIE720_MB * (pack_px_bytes / full_px)))
+
+    # LOAD-BEARING: the byte total (hence movie count) is derived from the ORGANISM'S OWN dedup store
+    # (unique_hard = len(org.normal)). Re-pack [A] with a FROZEN twin (confirm=10**9): it retains NOTHING, so it
+    # stores 0 hard blocks -> fewer bytes but NO LONGER bit-exact (it pastes plain upscale). The number moves and
+    # bit-exactness collapses -> proof the count comes FROM the living organism, not the deleted parallel dict.
+    bf, exf, uf, tf, orgf = pack_lossless(fa, confirm=10**9)
+    require_load_bearing("dedup unique-hard store (blocks) [A]", ua, uf)          # alive stores N unique; frozen 0
+    require_load_bearing("truly-lossless movies-in-2GB store bytes [A]", ba, bf)  # alive byte-total moves when frozen
+    assert orga.normal != orgf.normal and ua > 0 and uf == 0 and exa and not exf
+    print(f"   {ok(True)} FREEZE THE ORGANISM (confirm=10**9): store {ua:,}->{uf} unique hard blocks, "
+          f"bytes {ba:,}->{bf:,}, bit-exact {ok(exa)}->{ok(exf)} (frozen pastes lossy upscale). The count is the organism's.")
+
     print(f"\n  [A] RECURRING textures (animation/repeated sets), 25% detail: lossless {ok(exa)} -> ~{movies(ba)} movies (dedup bites).")
     print(f"  [B] UNIQUE textures, 25% detail (still 75% flat, favourable): lossless {ok(exb)} -> ~{movies(bb)} movies.")
     print(f"  [B2] REALISTIC MOVIE — 90% detail, all unique (a real film has texture everywhere): lossless {ok(exc)} "

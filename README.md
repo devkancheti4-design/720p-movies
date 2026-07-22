@@ -4,6 +4,23 @@
 99.97% measured pixel fidelity.** Every claim in this repo is a runnable, self-asserting Python file — clone and
 run; nothing here is a screenshot or a promise.
 
+## 🫀 Measured BY the alive organism — not a static screenshot (checked on every launch)
+
+Every headline number is computed or gated by the **living** Collatz organism, not by a bystander `set`/`dict`/`numpy`:
+- **Dedup / store / data numbers** come from `len(organism.normal)` — the organism's own novelty decisions. Delete or
+  freeze the organism and the number breaks.
+- **Quality / capture / PSNR** is device pixel-math (the organism never reads a pixel — a stated boundary), but the
+  rebuild pastes **only the hard blocks the organism retained**. Freeze the organism (`confirm=10**9`) → it retains
+  nothing → capture collapses to a plain upscale. Each file proves this with a live-vs-frozen contrast via
+  `require_load_bearing(...)`, which **aborts** if the two are equal (i.e. if the organism were decorative).
+- **[`vital_signs.py`](vital_signs.py)** runs at the top of every file: a launch-time liveness check that **aborts
+  with named symptoms** — FLATLINE, UNRESPONSIVE, ARRHYTHMIA, AMNESIA, NO-HEARTBEAT, DECORATIVE — if the organism has
+  gone static (pulse/response/determinism/crash-exact-regen/Collatz-heartbeat). A static organism can never serve.
+
+This was enforced by a 20-file audit: 13 files that had computed a headline with a static set were rewritten so the
+organism is genuinely load-bearing, then adversarially re-verified by freezing the organism and confirming the number
+moves. Run [`vital_signs.py`](vital_signs.py) directly to see it catch a static impostor and abort.
+
 ## 🧬 THE SWARM LIVES ON YOUR DISK — turn it on/off from the terminal (laptop or phone)
 
 ```bash

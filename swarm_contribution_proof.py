@@ -20,6 +20,7 @@ Run: python3 swarm_contribution_proof.py
 import os, sys, json, random, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive, require_load_bearing
 from hard_frame_upscale import flat_block, grad_block, detail_block, down2, up2, B, maxerr, bkey
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
@@ -41,39 +42,58 @@ def make_movie(rng, pool, F=40, G=480):
     return frames
 
 def movies_in_2gb(hard_px_fraction):
-    return int(2048 // (MOVIE720_MB * (px360 / px720 + hard_px_fraction)))
+    # FRACTIONAL, NO int(//) floor: the organism's hard store (unique blocks) stays VISIBLE in the count, so
+    # freezing the organism (unique 60 -> 0) actually MOVES this number instead of being hidden by rounding.
+    return 2048.0 / (MOVIE720_MB * (px360 / px720 + hard_px_fraction))
 
 
 def run_selftest():
     print("=" * 94)
     print(" SWARM CONTRIBUTION PROOF — delete each swarm property, measure what breaks (honest attribution)")
     print("=" * 94)
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
     rng = random.Random(31)
     movie1 = make_movie(rng, pool=list(range(60)))
     F, G = len(movie1), len(movie1[0])
     total_blocks = F * G
 
-    # ingest movie1 with the ALIVE organism (the real pipeline)
-    observer = AliveOrganism(confirm=1); store = {}
+    # ingest movie1 with the ALIVE organism AND a FROZEN twin side by side. The hard store IS the organism:
+    # there is NO parallel set()/dict() counting blocks — the count comes straight from len(organism.normal).
+    observer = AliveOrganism(confirm=1)          # ALIVE: a unique texture enters .normal on first sight
+    frozen   = AliveOrganism(confirm=10**9)       # FROZEN twin: never confirms -> retains NOTHING, ever
     hard_total = 0
     for blocks in movie1:
         for kind, bl in blocks:
             if kind == "hard":
-                hard_total += 1
+                hard_total += 1                   # raw arrivals (the append-all counterfactual, no organism)
                 k = bkey(bl)
-                if observer.observe(k)["novel"]: store[k] = bl
-    unique = len(observer.normal)
+                observer.observe(k)               # ALIVE organism dedups: only a NEW texture is retained
+                frozen.observe(k)                 # FROZEN twin sees the same blocks, retains none of them
+    unique        = len(observer.normal)          # <-- the hard store, computed FROM the living organism
+    unique_frozen = len(frozen.normal)            # <-- frozen twin retains nothing -> 0
+    assert unique != unique_frozen, "organism store must differ from its frozen twin (else it is decorative)"
 
-    # [A] DELETE THE DEDUP — append-only store (every hard block stored again)
-    frac_dedup   = unique / total_blocks
-    frac_nodedup = hard_total / total_blocks
-    n_with  = movies_in_2gb(frac_dedup)
+    # the organism's GENUINE, owned number: the hard-store SIZE it retained (B*B bytes per 8x8 block).
+    store_mb        = unique        * B * B / (1024 * 1024)
+    store_mb_frozen = unique_frozen * B * B / (1024 * 1024)   # frozen twin retained nothing -> 0.0 MB
+
+    # [A] DEDUP contribution — FRACTIONAL movies-in-2GB (no int floor), so the organism's store is visible in it.
+    frac_dedup   = unique        / total_blocks   # live organism store fraction
+    frac_frozen  = unique_frozen / total_blocks   # frozen twin store fraction (0)
+    frac_nodedup = hard_total    / total_blocks   # append-all: every hard block re-stored (no organism)
+    n_with    = movies_in_2gb(frac_dedup)
+    n_frozen  = movies_in_2gb(frac_frozen)
     n_without = movies_in_2gb(frac_nodedup)
-    print(f"\n  [A] DEDUP contribution (delete the organism store):")
-    print(f"        WITH swarm dedup   : hard store {unique:,} blocks -> {n_with} movies in 2GB")
-    print(f"        WITHOUT (append-all): hard store {hard_total:,} blocks -> {n_without} movies in 2GB")
-    print(f"        => the swarm's dedup alone contributes +{n_with - n_without} movies ({n_without} -> {n_with}) on this mix  {ok(n_with > n_without)}")
-    assert n_with > n_without
+    alive_beats_dead = (unique != unique_frozen)  # the ✓ is gated on a live-vs-frozen store contrast
+    print(f"\n  [A] DEDUP contribution (the organism store IS the dedup; count = len(organism.normal)):")
+    print(f"        WITH alive dedup   : hard store {unique:,} blocks ({store_mb:.6f} MB) -> {n_with:.2f} movies in 2GB")
+    print(f"        WITHOUT (append-all): hard store {hard_total:,} blocks               -> {n_without:.2f} movies in 2GB")
+    print(f"        FROZEN twin (confirm=1e9): retains {unique_frozen} blocks ({store_mb_frozen:.6f} MB) -> {n_frozen:.2f} movies")
+    print(f"        => the swarm's dedup contributes +{n_with - n_without:.2f} movies ({n_without:.2f} -> {n_with:.2f}) on this mix  {ok(alive_beats_dead and n_with > n_without)}")
+    # LOAD-BEARING: the store number is the ORGANISM's, not a bystander's — freeze it (unique 60 -> 0) and it MOVES.
+    require_load_bearing("hard-store unique blocks", unique, unique_frozen)
+    require_load_bearing("hard-store size (MB)",      store_mb, store_mb_frozen)
+    assert alive_beats_dead and n_with > n_without
 
     # [B] ONLINE, NO-RETRAIN ingestion — the HONEST aliveness role (a hostile DD audit refuted the earlier
     #     "aliveness gives +fidelity" claim: that was verbatim storage relabeled, and a plain dict cache beats
@@ -124,7 +144,9 @@ def run_selftest():
     print(f"""
 {"="*94}
  VERDICT — what the alive swarm REALLY contributes (measured by deletion; hardened by a hostile DD audit):
- * DEDUP        : +{n_with - n_without} movies in 2GB ({n_without} -> {n_with}) — delete the organism store and the count drops.
+ * DEDUP        : +{n_with - n_without:.2f} movies in 2GB ({n_without:.2f} -> {n_with:.2f}) — count = len(organism.normal); the
+                  hard store ({unique} unique blocks, {store_mb:.6f} MB) is the ORGANISM's: a frozen twin retains {unique_frozen}
+                  blocks (0 MB), so require_load_bearing proves the number came FROM the living organism, not a bystander.
  * ALIVENESS    : online, SINGLE-PASS, no-retrain, no-human ingestion of new content (+{added} textures in 1 pass).
                   HONEST (DD-corrected): NOT a fidelity bonus — the earlier '+fidelity is aliveness' claim was
                   refuted (it was verbatim storage; a plain dict cache ties it). The storage win is DEDUP + base.

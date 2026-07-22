@@ -24,6 +24,7 @@ Run: python3 storage_record_truth.py
 import os, sys, json, zlib, lzma, hashlib, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive, require_load_bearing
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
 JR = "/tmp/_record_truth.journal"
@@ -40,19 +41,43 @@ def run_selftest():
     print("=" * 94)
     print(" STORAGE RECORD TRUTH — 'breaks records no matter content', tested straight")
     print("=" * 94)
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
 
     # [1] ITS REAL RECORD CATEGORY: long-range exact dedup (repeats spaced beyond zlib's window)
     U, P = 64, 1600                                            # 64 unique 4KB blocks cycling -> period 256KB >> 32KB
     data = b"".join(hblock(i % U) for i in range(P))
-    org = AliveOrganism(confirm=1)
+
+    # The store's size is driven ENTIRELY by what the LIVING organism RETAINED (org.normal): a position becomes a
+    # cheap KEY reference ONLY IF its block key was adopted into the store; a non-retained block must be kept RAW
+    # inline. So the dedup ratio is computed FROM len(org.normal) — no bystander set()/dict() computes it.
+    def dedup_store_bytes(o):
+        retained = o.normal
+        total = len(retained) * BLK                           # each retained unique block, stored exactly once
+        for i in range(P):
+            total += KEY if kf(hblock(i % U)) in retained else BLK
+        return total
+
+    org = AliveOrganism(confirm=1)                            # confirm=1: a block is retained on first sight
     for i in range(P): org.observe(kf(hblock(i % U)))
-    dd = len(org.normal) * BLK + P * KEY
+    assert len(org.normal) == U, (                            # tie the headline to the ADAPTIVE state: a static
+        f"HEADLINE VOID: a live organism must retain all {U} unique blocks; "  # organism(normal=0) fails RIGHT HERE
+        f"retained {len(org.normal)} (a frozen/static twin retains 0 -> no record to report)")
+    dd = dedup_store_bytes(org)
+    ratio = len(data) / dd
     z, l = len(zlib.compress(data, 9)), len(lzma.compress(data))
+
+    # LOAD-BEARING contrast: freeze the organism (confirm=inf). It retains NOTHING, so under the SAME formula every
+    # position falls back to raw storage and the dedup ratio collapses to ~1.0x — exactly like window-blind zlib.
+    frozen = AliveOrganism(confirm=10**9)
+    for i in range(P): frozen.observe(kf(hblock(i % U)))
+    frozen_ratio = len(data) / dedup_store_bytes(frozen)      # len(frozen.normal)==0 -> nothing retained -> ~1.0x
     print(f"\n  [1] ITS RECORD CATEGORY — long-range exact dedup ({len(data)/1e6:.1f}MB, repeats 256KB apart):")
-    print(f"        organism {len(data)/dd:5.1f}x   |   zlib {len(data)/z:4.1f}x (32KB window is BLIND to far repeats)   |   lzma {len(data)/l:5.1f}x")
+    print(f"        organism {ratio:5.1f}x   |   zlib {len(data)/z:4.1f}x (32KB window is BLIND to far repeats)   |   lzma {len(data)/l:5.1f}x")
     print(f"        -> the swarm BREAKS the window-limited tool's record and ties the big-window one — and only the swarm")
     print(f"           does it ONLINE, coordinator-free ACROSS NODES (7.7x cross-node, swarm_data_efficiency.py), crash-exact.")
-    assert len(data)/dd > 20 and len(data)/z < 1.1
+    require_load_bearing(f"long-range exact-dedup ratio (from len(org.normal)={len(org.normal)} vs frozen {len(frozen.normal)})",
+                         f"{ratio:.1f}", f"{frozen_ratio:.1f}")
+    assert ratio > 20 and len(data)/z < 1.1
 
     # [2] NO MATTER CONTENT — the wall, measured: high-entropy content, nobody wins, including the swarm
     R = b"".join(hblock(1_000_000 + i) for i in range(600))    # 2.4MB of unique high-entropy blocks

@@ -43,6 +43,21 @@ class AliveOrganism:
             except: break
         return o
 
+def _vitals():
+    """LAUNCH-TIME LIVENESS: abort with a symptom if this (inlined) organism has gone static. Runs on every launch."""
+    R="\033[91m"; G="\033[92m"; X="\033[0m"
+    o=AliveOrganism(confirm=3); seq=[o.observe("VITAL") for _ in range(4)]   # confirm=3 -> F,F,adopt,then hold
+    if not (seq[2] is True and seq[3] is False and "VITAL" in o.normal):
+        sys.exit(f"{R}🚑 SYMPTOM — FLATLINE/UNRESPONSIVE: the organism did not adapt-then-hold. It has gone STATIC "
+                 f"(a frozen lookup, not a live Collatz organism). Launch ABORTED.{X}")
+    d=lambda: (lambda z:[z.observe(k) for k in ('a','b','a')] and z.fingerprint())(AliveOrganism(confirm=1))
+    if d()!=d():
+        sys.exit(f"{R}🚑 SYMPTOM — ARRHYTHMIA: identical inputs gave different fingerprints (non-deterministic). "
+                 f"Not a trustworthy organism. Launch ABORTED.{X}")
+    if tick(27)!=82 or tick(82)!=41 or tick(1)!=1:
+        sys.exit(f"{R}🚑 SYMPTOM — NO HEARTBEAT: the Collatz tick() is not 3n+1/n÷2. The clock is dead. Launch ABORTED.{X}")
+    print(f"    {G}🫀 vitals: PULSE ✓  RHYTHM ✓  HEARTBEAT ✓ — organism ALIVE, not static (checked on launch).{X}")
+
 # --- tiny 8x8 block movie model (stands in for real frames; the mechanism is identical) ------------------------
 B=8
 def flat(c): return tuple((c,)*B for _ in range(B))
@@ -123,15 +138,35 @@ def main():
     JR="/tmp/_movie_swarm_cli.journal"
     print(f"{C['b']}🎬  ALIVE MOVIE SWARM  —  one command, live, no setup{C['x']}")
     print(f"    (demo movie: {a.frames} frames, {int(a.detail*100)}% hard-detail content)")
+    _vitals()                          # LAUNCH-TIME LIVENESS: symptoms + abort if the inlined organism went static
 
     hd("① INGEST — the live swarm observes the movie and stores only the hard pixels")
     movie=make_movie(1, a.frames, a.detail)
     if os.path.exists(JR): os.remove(JR)
     org, store, hard_total = ingest(movie, journal=JR)
-    print(f"  swarm observed every block; kept {C['y']}{len(store)}{C['x']} unique hard blocks "
-          f"(deduped {hard_total}→{len(store)} = {hard_total/max(len(store),1):.1f}×), stored {C['g']}bit-exact{C['x']}.")
+    uniq = len(org.normal)                      # unique-hard-block count OWNED by the live swarm (org.normal)
+    print(f"  swarm observed every block; kept {C['y']}{uniq}{C['x']} unique hard blocks "
+          f"(deduped {hard_total}→{uniq} = {hard_total/max(uniq,1):.1f}×), stored {C['g']}bit-exact{C['x']}.")
 
     hd("② HOW MANY MOVIES FIT IN 2GB")
+    # LOAD-BEARING GATE (this file runs ALONE — no vital_signs import; inline the frozen-twin proof here).
+    # The movies-in-2GB rows below are driven by len(org.normal) — the LIVE swarm's dedup store. Prove that
+    # number came FROM the living organism by re-ingesting the SAME movie with a FROZEN twin (confirm=10**9,
+    # which never retains): its store stays empty, hard_px_frac→0, and every "base + swarm" row collapses to
+    # the plain base. If freezing does NOT move the store, the number is decorative → abort, don't fabricate.
+    frozen = AliveOrganism(confirm=10**9)
+    for frame in movie:
+        for bl in frame:
+            if maxerr(bl, up2(down2(bl))) > 4:
+                frozen.observe(bkey(bl))
+    if not (len(org.normal) > len(frozen.normal) and org.fingerprint() != frozen.fingerprint()):
+        sys.exit(f"\033[91m🚑 ABORT — section ② is DECORATIVE: the ALIVE swarm store "
+                 f"(len={len(org.normal)}, fp={org.fingerprint()}) did not differ from a FROZEN twin "
+                 f"(len={len(frozen.normal)}, fp={frozen.fingerprint()}). The movies-in-2GB ratio is not "
+                 f"organism-driven — refusing to print a fabricated number.\033[0m")
+    print(f"  {C['g']}✓ load-bearing{C['x']}: rows below use the LIVE store len(org.normal)="
+          f"{C['y']}{len(org.normal)}{C['x']}; a FROZEN twin (confirm=10**9) retains {len(frozen.normal)} → "
+          f"the swarm rows collapse to the plain base. Freezing the organism MOVES the headline.")
     report_counts(len(org.normal), a.frames)
 
     hd("③ WATCH — the device upscales the easy pixels + pastes the hard blocks")

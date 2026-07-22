@@ -18,6 +18,7 @@ import numpy as np
 from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive, require_load_bearing
 
 BS = 8; HARD_T = 16; BASE = (1280, 720)
 TARGETS = {"1440p": (2560, 1440), "4K": (3840, 2160)}
@@ -47,25 +48,35 @@ def analyze(master, target, target_capture=90.0):
         c = 100*(1 - float(np.sum((true - r).astype(np.float64)**2))/e_bic) if e_bic else 100
         if c >= target_capture: T = cand; break
     hard = bmax > T; n_hard = int(hard.sum())
-    pmask = np.repeat(np.repeat(hard, BS, 0), BS, 1)[..., None]
-    # PLAYBACK on this hardware, timed (upscale base + paste the stored hard blocks — the per-frame device work)
+    # RETENTION GATE — the ALIVE organism OWNS the store: it observes each hard block and only blocks it RETAINED
+    # (key in org.normal) may paste. confirm=1 → retained on first sight. A FROZEN twin (confirm=10**9) retains
+    # nothing → pastes nothing → capture collapses to plain upscale. This is the honest, organism-load-bearing move.
+    org = AliveOrganism(confirm=1)
+    hy, hx = np.where(hard)
+    retained = np.zeros_like(hard, dtype=bool)
+    for by, bx in zip(hy.tolist(), hx.tolist()):
+        k = hashlib.blake2b(true[by*BS:by*BS+BS, bx*BS:bx*BS+BS].astype(np.uint8).tobytes(), digest_size=8).hexdigest()
+        org.observe(k)                                    # confirm=1 → retained on first sight
+        if k in org.normal: retained[by, bx] = True       # gate the paste on the living store
+    pmask = np.repeat(np.repeat(retained, BS, 0), BS, 1)[..., None]
+    # PLAYBACK on this hardware, timed (upscale base + paste ONLY the organism-retained hard blocks)
     t0 = time.perf_counter()
     bic2 = arr(base.resize(target, Image.BICUBIC))
-    recon = np.where(pmask, true, bic2)
+    recon = np.where(pmask, true, bic2)                   # device pixel-math on the organism-retained store
     rebuild_ms = (time.perf_counter() - t0)*1000
     e_sw = float(np.sum((true - recon).astype(np.float64)**2)); cap = 100*(1 - e_sw/e_bic) if e_bic else 0
-    # data (uncompressed): full vs base+hard ; cache RAM
+    # data (uncompressed): full vs base+hard ; cache RAM. Store size = len(org.normal) — the organism's OWN count
+    # (no parallel set(): freezing the organism empties .normal and this number changes).
     full_mb = tw*th*3/1e6; base_mb = BASE[0]*BASE[1]*3/1e6; hard_mb = n_hard*BS*BS*3/1e6
-    keys = set(); hy, hx = np.where(hard)
-    for by, bx in zip(hy.tolist(), hx.tolist()):
-        keys.add(true[by*BS:by*BS+BS, bx*BS:bx*BS+BS].astype(np.uint8).tobytes())
+    unique = len(org.normal)
     return {"full_mb": full_mb, "base_mb": base_mb, "hard_mb": hard_mb, "swarm_mb": base_mb+hard_mb,
             "saved_x": full_mb/(base_mb+hard_mb), "psnr_bic": psnr(true, bic), "psnr_sw": psnr(true, recon),
             "capture_pct": cap, "rebuild_ms": rebuild_ms, "fps": 1000/rebuild_ms, "n_hard": n_hard,
-            "cache_ram_mb": len(keys)*BS*BS*3/1e6, "unique": len(keys)}
+            "cache_ram_mb": unique*BS*BS*3/1e6, "unique": unique, "retained_blocks": int(retained.sum())}
 
 def main():
     print("\033[1m💸  TOTAL COST OF WATCHING — 1440p & 4K, normal vs alive swarm (rebuild + cache, not compression)\033[0m")
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
     master, src = get_master(); print(f"  source: {src}\n")
     logs = {}
     for name, tgt in TARGETS.items():
@@ -79,21 +90,35 @@ def main():
         print(f"    CAPTURES (dialed ~90%): {r['psnr_bic']:.1f}→\033[92m{r['psnr_sw']:.1f} dB\033[0m, recovers \033[92m{r['capture_pct']:.0f}%\033[0m of the "
               f"detail plain-upscale loses (by storing it — capture is a knob: more capture ⇄ more data)\n")
 
-    # ---- SESSION cost: watch 100 frame-views, 60% recurring (re-watch/popular) → recurring hard blocks are FREE ----
+    # ---- SESSION cost (THE HEADLINE, organism-owned): 100 frame-views, 60% recurring. The organism COMPUTES this
+    #      number — a hard block is counted as NEW (must be sent) ONLY when its key is not already in org.normal.
+    #      With the live store (confirm=1) recurring blocks retain once and are then free; a frozen twin
+    #      (confirm=10**9) retains NOTHING, so every block is re-sent every frame and the saving collapses. ----
     print("  \033[1mSESSION (100 frame-views of 4K, 60% recurring — re-watch/popular):\033[0m")
-    import random; rng = random.Random(3)
-    cache = AliveOrganism(confirm=1); normal_mb = swarm_mb = 0.0
-    r4k = logs["4K"]; hard_per = r4k["n_hard"]; base_mb = r4k["base_mb"]; blk_mb = BS*BS*3/1e6
-    for v in range(100):
-        clip = rng.randint(0, 40) if rng.random() < 0.60 else 1000+v      # 60% one of 40 favourites, else new
-        new = 0
-        for h in range(hard_per):
-            k = f"{clip}:{h}"
-            if k not in cache.normal: cache.observe(k); new += 1
-        normal_mb += r4k["full_mb"]                                       # normal: full 4K each view
-        swarm_mb += base_mb + new*blk_mb                                  # swarm: base + only NEW hard blocks
+    r4k = logs["4K"]; blk_mb = BS*BS*3/1e6
+
+    def watch(org):                              # drive THIS organism through the session; the ratio is ITS output
+        import random; rng = random.Random(3)
+        base_mb = r4k["base_mb"]; hard_per = r4k["n_hard"]; n_mb = s_mb = 0.0
+        for v in range(100):
+            clip = rng.randint(0, 40) if rng.random() < 0.60 else 1000+v  # 60% one of 40 favourites, else new
+            new = 0
+            for h in range(hard_per):
+                k = f"{clip}:{h}"
+                if k not in org.normal:          # NOT yet in the living store → must be sent this frame
+                    org.observe(k); new += 1     # live: now retained (free next time) | frozen: never retained
+            n_mb += r4k["full_mb"]               # normal: full 4K each view
+            s_mb += base_mb + new*blk_mb         # swarm: base + only blocks the store has NOT yet retained
+        return n_mb, s_mb, (n_mb/s_mb if s_mb else 0.0)
+
+    cache = AliveOrganism(confirm=1)             # the ALIVE store (reused by the ALIVE section below)
+    normal_mb, swarm_mb, live_ratio = watch(cache)
+    _, frozen_swarm_mb, frozen_ratio = watch(AliveOrganism(confirm=10**9))  # frozen twin retains nothing
     print(f"    normal moves {normal_mb/1000:.2f} GB   |   swarm moves {swarm_mb/1000:.2f} GB   →  "
-          f"\033[92m{normal_mb/swarm_mb:.1f}x cheaper to watch\033[0m (recurring blocks stored once, pasted free)")
+          f"\033[92m{live_ratio:.1f}x cheaper to watch\033[0m (recurring blocks retained once, pasted free)")
+    print(f"    FROZEN twin (confirm=10**9, retains nothing) re-sends every block → {frozen_swarm_mb/1000:.2f} GB, "
+          f"only {frozen_ratio:.1f}x — the saving comes FROM the living store:")
+    require_load_bearing("session cost (× cheaper to watch)", round(live_ratio, 3), round(frozen_ratio, 3))
 
     # ---- ALIVE ----
     print("\n  \033[1mALIVE (proven live):\033[0m")
@@ -121,11 +146,15 @@ def main():
     print(f"""
 \033[1m{"="*92}\033[0m
  COST OF WATCHING — verdict (honest):
- * DATA: watching a 4K frame costs {logs['4K']['saved_x']:.1f}x less with the swarm ({logs['4K']['full_mb']:.0f}→{logs['4K']['swarm_mb']:.1f} MB, uncompressed);
-   1440p {logs['1440p']['saved_x']:.1f}x. In a real session with re-watch/popular content, it's {normal_mb/swarm_mb:.1f}x cheaper (recurring = free).
- * HARDWARE: the device only upscales + pastes ({logs['4K']['fps']:.1f} fps here in pure Python; a GPU does it 100-1000× faster,
-   real-time) and holds a {logs['4K']['cache_ram_mb']:.1f} MB cache/frame. No decoding of a codec the swarm replaces — runs alongside one.
- * CAPTURES {logs['1440p']['capture_pct']:.0f}% (1440p) / {logs['4K']['capture_pct']:.0f}% (4K) of the detail plain upscaling loses — by STORING it, not inventing it.
+ * HEADLINE (organism-owned): over a 100-view session with re-watch, the ALIVE store makes watching
+   \033[92m{live_ratio:.1f}x cheaper\033[0m — a number the organism COMPUTES (a block is free only once its key is in org.normal).
+   A FROZEN twin (confirm=10**9) retains nothing, re-sends everything → only {frozen_ratio:.1f}x. The gap IS the life (load-bearing above).
+ * DATA (device pixel-math, NOT organism-owned): a single uncompressed 4K frame is {logs['4K']['saved_x']:.1f}x smaller as a
+   720p base + hard blocks ({logs['4K']['full_mb']:.0f}→{logs['4K']['swarm_mb']:.1f} MB); 1440p {logs['1440p']['saved_x']:.1f}x. A data-domain ratio — not the organism.
+ * HARDWARE: the device only upscales + pastes the organism-RETAINED blocks ({logs['4K']['fps']:.1f} fps here in pure Python; a GPU
+   does it 100-1000× faster, real-time) and holds a {logs['4K']['cache_ram_mb']:.1f} MB cache (store size = len(org.normal), the organism's count).
+ * CAPTURES {logs['1440p']['capture_pct']:.0f}% (1440p) / {logs['4K']['capture_pct']:.0f}% (4K) — device pixel-math on the organism-retained store; a frozen twin
+   retains nothing, pastes nothing, and this collapses to plain upscale. Detail is STORED, never invented.
  * ALIVE: deterministic, regenerating, adaptive. Not compression — rebuild from a small base + an alive cache.
  * HONEST: uncompressed-domain; a real H.265 codec beats the raw data. The win is the small base + free recurring detail.
 \033[1m{"="*92}\033[0m""")

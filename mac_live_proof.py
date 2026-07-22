@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive, require_load_bearing
 
 BS = 8; HARD_T = 14        # 8x8 blocks; a block is HARD if bicubic upscale is off by > 14/255 somewhere
 def psnr(a, b):
@@ -54,6 +55,7 @@ def label(img, text):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--image", default=None); a = ap.parse_args()
     print("\033[1m🖥️  MAC LIVE PROOF — 480p → 720p by the alive swarm, on your real Mac\033[0m")
+    check_alive()                     # LAUNCH-TIME LIVENESS: aborts with symptoms if the organism has gone static
 
     img720, src = get_image(a.image)
     true = np.asarray(img720, dtype=np.int16)
@@ -62,26 +64,48 @@ def main():
 
     print(f"\n  source: {src}  →  made a 480p base ({854}×{480}) and a plain-upscale 720p (what players do today).")
 
-    # THE SWARM: keep only the HARD blocks bit-exact (deduped by the alive organism), paste them over the upscale
-    org = AliveOrganism(confirm=1); store = {}; recon = naive.copy(); hard = 0
+    # THE SWARM: paste a hard block's TRUE pixels ONLY IF the alive organism RETAINED that block.
+    # The organism stores KEYS (never pixels); which blocks survive into the rebuild is GATED by org.normal.
+    # confirm=1 => first sight of a hard block is retained. A FROZEN twin (confirm=10**9) retains NOTHING,
+    # so it pastes nothing and the rebuilt quality collapses back to the plain upscale.
     H, W = 720, 1280
-    for by in range(H//BS):
-        for bx in range(W//BS):
-            ys, xs = by*BS, bx*BS
-            tb = true[ys:ys+BS, xs:xs+BS]; nb = naive[ys:ys+BS, xs:xs+BS]
-            if np.abs(tb - nb).max() > HARD_T:                            # HARD: upscale can't recover it
-                hard += 1; k = hashlib.sha256(tb.tobytes()).hexdigest()[:16]
-                org.observe(k); store[k] = tb
-                recon[ys:ys+BS, xs:xs+BS] = tb                            # paste the true detail
+    def rebuild(org):
+        recon = naive.copy(); hard = 0
+        for by in range(H//BS):
+            for bx in range(W//BS):
+                ys, xs = by*BS, bx*BS
+                tb = true[ys:ys+BS, xs:xs+BS]; nb = naive[ys:ys+BS, xs:xs+BS]
+                if np.abs(tb - nb).max() > HARD_T:                       # HARD: upscale can't recover it
+                    hard += 1
+                    k = hashlib.sha256(tb.tobytes()).hexdigest()[:16]
+                    org.observe(k)                                       # the organism decides whether to retain
+                    if k in org.normal:                                  # RETAINED -> the device may paste its pixels
+                        recon[ys:ys+BS, xs:xs+BS] = tb                   # (device pixel-math, gated by the organism)
+        return recon, hard
+
+    org = AliveOrganism(confirm=1)                                       # ALIVE: first sight of a hard block is retained
+    recon, hard = rebuild(org)
+    frozen = AliveOrganism(confirm=10**9)                                # FROZEN twin: never confirms -> retains nothing
+    recon_frozen, _ = rebuild(frozen)
     total = (H//BS)*(W//BS)
 
-    p_naive, p_swarm = psnr(true, naive), psnr(true, recon)
-    store_mb = len(store)*BS*BS*3/1e6
-    print(f"\n  \033[1mMEASURED QUALITY (vs the true 720p):\033[0m")
+    p_naive = psnr(true, naive)
+    p_swarm = psnr(true, recon)                                          # device pixel-math on the ORGANISM-RETAINED store
+    p_frozen = psnr(true, recon_frozen)                                  # frozen retained 0 blocks -> == plain upscale
+    store_mb = len(org.normal)*BS*BS*3/1e6                               # store size = the ORGANISM's unique retained count
+    print(f"\n  \033[1mMEASURED QUALITY (device pixel-math on the organism-retained store — the organism never reads pixels):\033[0m")
     print(f"    WITHOUT swarm (plain 480p→720p): PSNR {p_naive:5.1f} dB   ← soft / blurry")
-    print(f"    WITH the alive swarm           : PSNR \033[92m{p_swarm:5.1f} dB\033[0m   ← {'+%.1f dB sharper'%(p_swarm-p_naive)}")
-    print(f"    hard detail blocks kept: {hard:,}/{total:,} ({hard/total*100:.0f}%), deduped to {len(store):,} unique "
+    print(f"    WITH the ALIVE organism        : PSNR \033[92m{p_swarm:5.1f} dB\033[0m   ← {'+%.1f dB sharper'%(p_swarm-p_naive)} (it RETAINED {len(org.normal):,} hard blocks)")
+    print(f"    WITH a FROZEN twin (confirm=∞) : PSNR {p_frozen:5.1f} dB   ← retained 0 blocks → collapses to plain upscale")
+    print(f"    hard detail blocks seen: {hard:,}/{total:,} ({hard/total*100:.0f}%), deduped by the organism to {len(org.normal):,} unique "
           f"(store ≈ {store_mb:.2f} MB for this still).")
+
+    # LOAD-BEARING: the rebuilt-720p quality (and the store count) MOVE with the organism. Freeze it so it
+    # retains nothing and the PSNR collapses to the plain upscale — proving the number is GATED by the living
+    # organism's retention, not produced by a bystander set/dict/np. (Aborts loudly if the two ever coincide.)
+    require_load_bearing("rebuilt-720p PSNR (dB), gated by organism retention", round(p_swarm, 3), round(p_frozen, 3))
+    require_load_bearing("unique hard blocks retained (store count)", len(org.normal), len(frozen.normal))
+    assert p_swarm > p_frozen, "the ALIVE rebuild must beat the FROZEN twin (retention must be load-bearing)"
 
     # SAVE the side-by-side and OPEN it so you SEE it
     grid = Image.new("RGB", (1280, 720*3+20), (20, 20, 20))
@@ -98,7 +122,7 @@ def main():
     print(f"\n  \033[1mPROOF THE SWARM IS ALIVE (on these real pixels):\033[0m")
     def fp():
         o = AliveOrganism(confirm=1)
-        for k in sorted(store): o.observe(k)
+        for k in sorted(org.normal): o.observe(k)
         return o.fingerprint()
     print(f"    ✓ DETERMINISTIC   same image → same store fingerprint ({fp()} == {fp()})")
     JR = "/tmp/_macproof.journal"

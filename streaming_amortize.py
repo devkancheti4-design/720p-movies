@@ -16,6 +16,7 @@ it is an amortized BANDWIDTH/stream multiplier over a session, not compression o
 import os, sys, json, random, hashlib, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
 JR = "/tmp/_amortize.journal"; B = 8; BLOCK_BYTES = 192   # a hard block's on-wire cost; base is 1/4 resolution
@@ -59,6 +60,7 @@ def hd(t): print(f"\n\033[1m\033[96m{t}\033[0m")
 
 def run():
     print("\033[1m📈  STREAMING AMORTIZATION  —  swarm warms up, effective multiplier climbs the longer you stream\033[0m")
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
     frames = stream(1, 400)                                  # a long session of detail-heavy, recurring content
     cache=AliveOrganism(confirm=1)
     full=0; sent=0                                           # cumulative bytes full-quality vs actually-streamed

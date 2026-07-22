@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
 HARD-FRAME UPSCALE — store a low-res base + the swarm OBSERVES and stores only the HARD blocks; the device
-hardware arranges the easy pixels (interpolation). EXACT movie counts for 2GB, measured, honest.
+hardware arranges the easy pixels (interpolation). Movie counts for 2GB, measured, honestly labelled.
+
+HONEST HEADLINE OWNERSHIP: the movie COUNTS are NOT the organism's number — they are set by the base-resolution
+pixel ratio (px360/px720 = 0.25, px480/px720 ≈ 0.44), plain arithmetic no organism touches. The organism supplies
+only the tiny hard-block DELTA on top of that ratio. The number the organism GENUINELY computes and owns is the
+DEDUP of the hard-block store: hard_total observed -> unique_hard retained (= len(observer.normal)). Freeze the
+observer (confirm=inf) and that number collapses to 0 (require_load_bearing proves it). So the verdict LEADS with
+the dedup, and reports the movie counts as ratio-driven with an organism-supplied delta — no overclaim.
 
 The user's mechanism: the organisms are not "memory" here but OBSERVERS — they watch each frame, detect which
 blocks the device CANNOT recover by upscaling (the HARD blocks: texture/detail), store exactly those (deduped,
@@ -17,8 +24,8 @@ Measured, self-verifying (synthetic frames, disclosed):
   [2] HARD blocks really are hard: detail blocks fail upscaling (large error) -> the observer stores them.
   [3] OBSERVER + DEDUP: repeated hard textures across frames stored ONCE (deterministic, bit-exact store).
   [4] RECONSTRUCTION: base-upscale + paste hard blocks -> % pixels bit-exact + tiny bounded error on the rest.
-  [5] EXACT MOVIE COUNTS for 2GB (720p=4 movies@500MB given; bytes ~ pixels-stored at equal quality, stated):
-      360p base + hard store, 480p base + hard store.
+  [5] MOVIE COUNTS for 2GB (ratio-driven, NOT organism-owned: 720p=4 movies@500MB given; bytes ~ pixels-stored at
+      equal quality, stated): 360p base + hard store, 480p base + hard store. Counts set by base-res pixel ratio.
   [6] ALIVE + REGENERATING: the observer adapts (repeated hard texture -> known) and revives byte-exact (SIGKILL).
 
 HONEST: NEAR-lossless, not bit-exact everywhere (easy pixels carry <=2/255 interpolation error; hard blocks are
@@ -30,6 +37,7 @@ Run: python3 hard_frame_upscale.py
 import os, sys, json, hashlib, random, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive, require_load_bearing
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
 JR = "/tmp/_hard_frame.journal"
@@ -63,6 +71,7 @@ def run_selftest():
     print("=" * 94)
     print(" HARD-FRAME UPSCALE — swarm observes+stores the hard blocks; device hardware arranges the easy pixels")
     print("=" * 94)
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
     rng = random.Random(31)
 
     # [1] EASY pixels are easy; [2] HARD blocks are hard (the classifier facts the scheme rests on)
@@ -88,8 +97,11 @@ def run_selftest():
             else:          blocks.append(("hard", detail_block(rng.choice(texture_pool))))
         frames.append(blocks)
 
-    # [3] OBSERVER + DEDUP — the organism observes every hard block, stores each unique one ONCE
-    observer = AliveOrganism(confirm=1)
+    # [3] OBSERVER + DEDUP — the organism observes every hard block, stores each unique one ONCE.
+    # This is the ONE number the organism genuinely owns: unique_hard = len(observer.normal). A FROZEN twin
+    # (confirm=inf) observes the identical stream but retains NOTHING -> its store stays empty -> unique=0.
+    observer = AliveOrganism(confirm=1)                   # ALIVE: first sight of a unique hard block is retained
+    frozen_twin = AliveOrganism(confirm=10**9)            # FROZEN twin: same stream, never retains -> store empty
     hard_store = {}
     hard_total = 0
     for blocks in frames:
@@ -98,8 +110,11 @@ def run_selftest():
                 hard_total += 1
                 k = bkey(bl)
                 observer.observe(k)
-                hard_store[k] = bl                        # bit-exact block, stored once
-    unique_hard = len(observer.normal)
+                frozen_twin.observe(k)                    # identical input to the frozen control
+                hard_store[k] = bl                        # bit-exact block, stored once (pixels for [4]'s paste)
+    unique_hard = len(observer.normal)                    # organism-owned dedup count (from the LIVE store)
+    unique_hard_frozen = len(frozen_twin.normal)          # frozen twin retained nothing -> 0
+    assert unique_hard > 0, "observer went static"        # explicit (was an incidental ZeroDivisionError on /unique_hard)
     print(f"  [3] OBSERVER + DEDUP: {hard_total:,} hard blocks observed -> {unique_hard:,} unique stored bit-exact "
           f"({hard_total/unique_hard:.1f}x dedup — recurring textures stored ONCE), deterministic fp {observer.fingerprint()}")
     assert unique_hard < hard_total
@@ -135,7 +150,7 @@ def run_selftest():
         stored[name] = movie720 * frac
     n720 = int(2048 // movie720)
     n360 = int(2048 // stored["360p"]); n480 = int(2048 // stored["480p"])
-    print(f"  [5] EXACT COUNTS in 2GB (720p=500MB given; bytes~stored pixels, measured hard mix {hard_frac_px*100:.1f}% unique-hard):")
+    print(f"  [5] MOVIE COUNTS in 2GB (RATIO-driven, not organism-owned; 720p=500MB given; bytes~stored pixels, organism-supplied hard delta {hard_frac_px*100:.1f}% unique-hard):")
     print(f"        full 720p                : 500 MB/movie -> {n720} movies")
     print(f"        360p base + hard store   : {stored['360p']:.0f} MB/movie -> {n360} movies (near-lossless: hard EXACT, easy <= {worst}/255)")
     print(f"        480p base + hard store   : {stored['480p']:.0f} MB/movie -> {n480} movies (same fidelity, 480p proxy of the 2x-measured mix)")
@@ -143,7 +158,12 @@ def run_selftest():
           f"15% -> {int(2048 // (movie720*(px360/px720+0.15)))}; 30% -> {int(2048 // (movie720*(px360/px720+0.30)))} — a detail-heavy movie fits fewer.")
     assert n360 > n720 and n480 > n720
 
-    # [6] ALIVE + REGENERATING — the observer adapts; and revives byte-exact after a real SIGKILL
+    # [6] ALIVE + REGENERATING — the observer adapts; and revives byte-exact after a real SIGKILL.
+    # LOAD-BEARING: the headline organism-number (unique_hard = len(observer.normal), from the SAME observer
+    # instance used in [3]) must MOVE when the organism is frozen. Live store retained unique_hard blocks; the
+    # frozen twin — identical input — retained unique_hard_frozen (0). If they matched, the dedup would be a
+    # bystander set(); require_load_bearing ABORTS on that.
+    require_load_bearing("dedup unique-hard store = len(observer.normal)", unique_hard, unique_hard_frozen)
     a = AliveOrganism(confirm=3)
     seq = [a.observe("recurring_texture")["novel"] for _ in range(4)]
     if os.path.exists(JR): os.remove(JR)
@@ -164,10 +184,16 @@ def run_selftest():
     print(f"""
 {"="*94}
  VERDICT — hard-frame observer upscaling (your mechanism, measured):
- * EXACT NUMBERS for 2GB: full 720p = {n720} movies; 360p base + swarm hard-store = {n360} movies; 480p base = {n480} movies.
-   NEAR-lossless: hard content pasted BIT-EXACT from the observer's deduped store; easy pixels arranged by the
-   device's interpolation within {worst}/255. The organisms are the OBSERVERS: they detect + store + dedup the hard
-   blocks deterministically ({hard_total:,}->{unique_hard:,}), adapt to recurring textures, and revive byte-exact.
+ * ORGANISM-OWNED NUMBER (leads): the DEDUP of the hard-block store — {hard_total:,} hard blocks observed ->
+   {unique_hard:,} unique retained bit-exact (= len(observer.normal)), a {hard_total/unique_hard:.1f}x dedup. This
+   number is LOAD-BEARING: freeze the observer (confirm=inf) and the SAME stream retains {unique_hard_frozen} unique
+   -> the number collapses to 0 (require_load_bearing enforces the gap). The observers detect + store + dedup
+   deterministically, adapt to recurring textures, and revive byte-exact after a real SIGKILL.
+ * MOVIE COUNTS (ratio-driven, NOT organism-owned) for 2GB: full 720p = {n720} movies; 360p base + hard-store =
+   {n360} movies; 480p base = {n480} movies. These are set by the base-resolution PIXEL RATIO (360p/720p = 0.25,
+   480p/720p ≈ 0.44) — plain arithmetic the organism never touches; the organism only adds the tiny hard-block
+   delta ({hard_frac_px*100:.1f}% unique-hard) on top. NEAR-lossless: hard content pasted BIT-EXACT from the
+   observer's deduped store; easy pixels arranged by the device's interpolation within {worst}/255.
  * HONEST: bytes~stored-pixels at equal quality is a stated model, and the easy/hard mix here is synthetic and
    measured ({hard_frac_px*100:.1f}% unique-hard) — a detail-heavy real movie stores more and fits fewer; 480p reuses the
    2x-measured mix as a proxy. The device does the upscale+paste; the classifier/upscaler are plain code, not the

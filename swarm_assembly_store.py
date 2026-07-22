@@ -23,6 +23,7 @@ Run: python3 swarm_assembly_store.py
 import os, sys, json, random, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
 JR = "/tmp/_assembly.journal"
@@ -32,6 +33,7 @@ def run_selftest():
     print("=" * 92)
     print(" SWARM ASSEMBLY STORE — an always-on alive swarm makes it easy for any device to assemble content")
     print("=" * 92)
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
     rng = random.Random(9)
     M, N, BLK = 20, 12, 150                                 # 20 content items, 12 devices, 150 blocks/item
     item_blocks = {i: [f"item{i}_blk{j}" for j in range(BLK)] for i in range(M)}

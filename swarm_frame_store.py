@@ -29,6 +29,7 @@ Run: python3 swarm_frame_store.py
 import os, sys, json, hashlib, random, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
 JR = "/tmp/_frame_store.journal"
@@ -52,6 +53,7 @@ def run_selftest():
     print("=" * 92)
     print(" SWARM FRAME STORE — store most-repeated colour blocks, keep novel, multiply, recover BIT-EXACT")
     print("=" * 92)
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
     rng = random.Random(21)
     stream = make_stream(rng)
     total = len(stream)

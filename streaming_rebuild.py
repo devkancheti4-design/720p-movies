@@ -28,6 +28,7 @@ are already H.264 — you run this on the frames (or ship base+hard instead of t
 import os, sys, json, random, hashlib, subprocess, signal, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from complete_alive_organism import AliveOrganism
+from vital_signs import check_alive
 
 ok = lambda b: "\033[92m✓\033[0m" if b else "\033[91m✗\033[0m"
 JR = "/tmp/_streaming.journal"
@@ -77,6 +78,7 @@ def hd(t): print(f"\n\033[1m\033[96m{t}\033[0m")
 
 def run():
     print("\033[1m📡  STREAMING REBUILD  —  instant online 720p rebuild (YouTube/Instagram/any video), alive swarm\033[0m")
+    check_alive()                     # LAUNCH-TIME LIVENESS: symptoms + abort if the organism went static
 
     hd("① INSTANT REBUILD — how fast the device rebuilds each frame")
     frames = stream_frames(1, 30)
