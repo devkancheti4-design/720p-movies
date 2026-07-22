@@ -32,21 +32,28 @@ def get_master(v="a"):
     except Exception:
         rng = np.random.default_rng(5); return Image.fromarray(rng.integers(40, 210, (2160, 3840, 3), dtype=np.uint8)), "offline 4K frame"
 
-def analyze(master, target):
+def analyze(master, target, target_capture=90.0):
     tw, th = target
     true = arr(master.resize(target, Image.BICUBIC))
     base = master.resize(BASE, Image.BICUBIC)
-    # --- REBUILD on this hardware, timed (upscale base + paste hard) ---
-    t0 = time.perf_counter()
     bic = arr(base.resize(target, Image.BICUBIC))
     diff = np.abs(true - bic).max(axis=2)
-    hard = diff.reshape(th//BS, BS, tw//BS, BS).max(axis=(1, 3)) > HARD_T
-    recon = np.where(np.repeat(np.repeat(hard, BS, 0), BS, 1)[..., None], true, bic)
+    bmax = diff.reshape(th//BS, BS, tw//BS, BS).max(axis=(1, 3))
+    e_bic = float(np.sum((true - bic).astype(np.float64)**2)); n_blk = bmax.size
+    # INGEST (one-time): dial the threshold DOWN until we capture >= target_capture% of the lost 4K detail
+    T = 1
+    for cand in range(60, 0, -1):
+        h = bmax > cand; r = np.where(np.repeat(np.repeat(h, BS, 0), BS, 1)[..., None], true, bic)
+        c = 100*(1 - float(np.sum((true - r).astype(np.float64)**2))/e_bic) if e_bic else 100
+        if c >= target_capture: T = cand; break
+    hard = bmax > T; n_hard = int(hard.sum())
+    pmask = np.repeat(np.repeat(hard, BS, 0), BS, 1)[..., None]
+    # PLAYBACK on this hardware, timed (upscale base + paste the stored hard blocks — the per-frame device work)
+    t0 = time.perf_counter()
+    bic2 = arr(base.resize(target, Image.BICUBIC))
+    recon = np.where(pmask, true, bic2)
     rebuild_ms = (time.perf_counter() - t0)*1000
-    n_hard = int(hard.sum()); n_blk = hard.size
-    # capture
-    e_bic = float(np.sum((true - bic).astype(np.float64)**2)); e_sw = float(np.sum((true - recon).astype(np.float64)**2))
-    cap = 100*(1 - e_sw/e_bic) if e_bic else 0
+    e_sw = float(np.sum((true - recon).astype(np.float64)**2)); cap = 100*(1 - e_sw/e_bic) if e_bic else 0
     # data (uncompressed): full vs base+hard ; cache RAM
     full_mb = tw*th*3/1e6; base_mb = BASE[0]*BASE[1]*3/1e6; hard_mb = n_hard*BS*BS*3/1e6
     keys = set(); hy, hx = np.where(hard)
@@ -69,8 +76,8 @@ def main():
         print(f"    DEVICE HARDWARE       : rebuild {r['rebuild_ms']:.0f} ms/frame on THIS Mac (pure-Python) → {r['fps']:.1f} fps "
               f"(a GPU shader does upscale+paste 100-1000× faster → easily real-time)")
         print(f"    CACHE RAM             : {r['cache_ram_mb']:.1f} MB for {r['unique']:,} hard blocks")
-        print(f"    CAPTURES              : {r['psnr_bic']:.1f}→\033[92m{r['psnr_sw']:.1f} dB\033[0m, recovers {r['capture_pct']:.0f}% of the "
-              f"detail plain-upscale loses (by storing it)\n")
+        print(f"    CAPTURES (dialed ~90%): {r['psnr_bic']:.1f}→\033[92m{r['psnr_sw']:.1f} dB\033[0m, recovers \033[92m{r['capture_pct']:.0f}%\033[0m of the "
+              f"detail plain-upscale loses (by storing it — capture is a knob: more capture ⇄ more data)\n")
 
     # ---- SESSION cost: watch 100 frame-views, 60% recurring (re-watch/popular) → recurring hard blocks are FREE ----
     print("  \033[1mSESSION (100 frame-views of 4K, 60% recurring — re-watch/popular):\033[0m")
